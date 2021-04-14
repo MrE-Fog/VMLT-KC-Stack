@@ -1,0 +1,54 @@
+# cluster-issuer.yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: traefik-staging
+spec:
+  acme:
+    # You must replace this email address with your own.
+    # Let's Encrypt will use this to contact you about expiring
+    # certificates, and issues related to your account.
+    email: cavelle@thecb4.io
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      # Secret resource used to store the account's private key.
+      name: traefik.thecb4.io-tls
+    # Add a single challenge solver, HTTP01
+    solvers:
+      - http01:
+          ingress:
+            class: traefik-cert-manager
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: traefik-prod
+spec:
+  acme:
+    # You must replace this email address with your own.
+    # Let's Encrypt will use this to contact you about expiring
+    # certificates, and issues related to your account.
+    email: cavelle@thecb4.io
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      # Secret resource used to store the account's private key.
+      name: traefik.thecb4.io-tls
+    # Add a single challenge solver, HTTP01
+    solvers:
+      - http01:
+          ingress:
+            class: traefik-cert-manager
+---
+# traefik-dashboard-certificate.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: traefik-thecb4-cert
+spec:
+  commonName: traefik.thecb4.io
+  secretName: traefik.thecb4.io-tls
+  dnsNames:
+    - traefik.thecb4.io
+  issuerRef:
+    name: traefik-staging
+    kind: ClusterIssuer

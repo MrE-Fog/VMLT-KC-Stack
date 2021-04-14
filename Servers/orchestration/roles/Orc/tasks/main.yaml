@@ -1,0 +1,28 @@
+- name: Substitute Terraform Variables
+  template:
+    src: templates/tfvars.j2
+    dest: "{{ playbook_dir }}/../formations/env.tfvars"
+  when: (operation == "deploy")
+
+- name: "Terraform Deploy"
+  community.general.terraform:
+    project_path: '{{ playbook_dir }}/../formations'
+    state: "present"
+    force_init: true
+    init_reconfigure: true
+    variables:
+      do_token: '{{ hostvars[inventory_hostname].digital_ocean_token }}'
+    variables_files:
+      - "{{ playbook_dir }}/../formations/env.tfvars"
+  when: (operation == "deploy")
+
+- name: "Terraform Destroy"
+  community.general.terraform:
+    project_path: '{{ playbook_dir }}/../formations'
+    state: "absent"
+    variables:
+      do_token: '{{ hostvars[inventory_hostname].digital_ocean_token }}'
+    variables_files:
+      - "{{ playbook_dir }}/../formations/env.tfvars"
+  when: (operation == "destroy")
+

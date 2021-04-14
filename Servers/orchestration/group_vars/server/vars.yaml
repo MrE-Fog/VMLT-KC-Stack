@@ -1,0 +1,13 @@
+# https://www.digitalocean.com/community/tutorials/how-to-use-vault-to-protect-sensitive-ansible-data-on-ubuntu-16-04
+---
+terraform:
+  production:
+    cluster_name: "thecb4-k8s-production"
+    cluster_region: "nyc1"
+    node_size: "s-4vcpu-8gb"
+    node_count: 3
+  testing:
+    cluster_name: "thecb4-k8s-testing"
+    cluster_region: "nyc1"
+    node_size: "s-2vcpu-4gb"
+    node_count: 3

@@ -1,0 +1,4 @@
+cluster_name = "{{ terraform['%s' | format(env)].cluster_name }}"
+cluster_region = "{{ terraform['%s' | format(env)].cluster_region }}"
+worker_size = "{{ terraform['%s' | format(env)].node_size }}"
+worker_count = {{ terraform['%s' | format(env)].node_count }}

@@ -1,0 +1,35 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: traefik-dashboard-auth
+data:
+  # https://traefik.io/blog/install-and-configure-traefik-with-helm/
+  users: |2
+    a2FuZ29yb286JGFwcjEkdGlQbFBINXYkYlJrUHBSUlYuYUxUWnhFRzdYbmduMAoK
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-dashboard-basicauth
+spec:
+  basicAuth:
+    secret: traefik-dashboard-auth
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: traefik-dashboard-ingress
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`traefik.thecb4.io`)
+      kind: Rule
+      Middlewares:
+        - name: traefik-dashboard-basicauth
+      services:
+        - name: api@internal
+          kind: TraefikService
+  tls:
+    secretName: traefik.thecb4.io-tls

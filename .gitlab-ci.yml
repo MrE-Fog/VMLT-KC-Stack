@@ -1,0 +1,12 @@
+stages:
+  - servers
+
+build:
+  image: docker.io/thecb4/orc-deployment:latest
+  stage: servers
+  script:
+    - cd Servers
+    - echo "$MY_VAULT_PASSWORD" > orchestration/.vault_pass
+    - bin/manage.sh deploy testing
+  only:
+    - main

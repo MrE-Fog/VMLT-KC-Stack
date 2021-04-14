@@ -1,0 +1,16 @@
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: vapor-application-ingress
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`vapor-blog.thecb4.io`)
+      kind: Rule
+      services:
+        - name: {{ .Values.service.name }}
+          port: 8080
+  tls:
+    secretName: vapor-blog.thecb4.io-tls

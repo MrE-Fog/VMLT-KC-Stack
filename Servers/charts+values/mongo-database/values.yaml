@@ -1,0 +1,25 @@
+global:
+  storageClass: rook-ceph-block
+mongodbRootPassword: a7dk59rj3-
+shards: 2
+common:
+  mongodbSystemLogVerbosity: 3
+  serviceAccount:
+    create: true
+# externalAccess:
+#   enabled: true
+#   service:
+#     type: LoadBalancer
+#     port: 27017
+#   autoDiscovery:
+#     enabled: true
+# serviceAccount:
+#   create: true
+# rbac:
+#   create: true
+# auth:
+#   enabled: true
+#   rootPassword: a7dk59rj3-
+#   username: admin
+#   password: d04kgyd3l-
+#   database: socialbird

@@ -1,0 +1,6 @@
+.vault_pass
+.terraform
+.build
+*.tgz
+*.tfstate
+*.tfstate.lock.info

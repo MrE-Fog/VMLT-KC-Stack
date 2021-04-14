@@ -1,0 +1,310 @@
+#################################################################################################################
+# Define the settings for the rook-ceph cluster with common settings for a production cluster.
+# All nodes with available raw devices will be used for the Ceph cluster. At least three nodes are required
+# in this example. See the documentation for more details on storage settings available.
+
+# For example, to create the cluster:
+#   kubectl create -f crds.yaml -f common.yaml -f operator.yaml
+#   kubectl create -f cluster-on-pvc.yaml
+#################################################################################################################
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: rook-ceph
+  namespace: rook-ceph # namespace:cluster
+spec:
+  dataDirHostPath: /var/lib/rook
+  mon:
+    # Set the number of mons to be started. Must be an odd number, and is generally recommended to be 3.
+    count: 3
+    # The mons should be on unique nodes. For production, at least 3 nodes are recommended for this reason.
+    # Mons should only be allowed on the same node for test environments where data loss is acceptable.
+    allowMultiplePerNode: false
+    # A volume claim template can be specified in which case new monitors (and
+    # monitors created during fail over) will construct a PVC based on the
+    # template for the monitor's primary storage. Changes to the template do not
+    # affect existing monitors. Log data is stored on the HostPath under
+    # dataDirHostPath. If no storage requirement is specified, a default storage
+    # size appropriate for monitor data will be used.
+    volumeClaimTemplate:
+      spec:
+        storageClassName: do-block-storage
+        resources:
+          requests:
+            storage: 10Gi
+  cephVersion:
+    image: ceph/ceph:v15.2.9
+    allowUnsupported: false
+  skipUpgradeChecks: false
+  continueUpgradeAfterChecksEvenIfNotHealthy: false
+  mgr:
+    modules:
+      - name: pg_autoscaler
+        enabled: true
+  dashboard:
+    enabled: true
+    ssl: true
+  crashCollector:
+    disable: false
+  storage:
+    storageClassDeviceSets:
+      - name: set1
+        # The number of OSDs to create from this device set
+        count: 3
+        # IMPORTANT: If volumes specified by the storageClassName are not portable across nodes
+        # this needs to be set to false. For example, if using the local storage provisioner
+        # this should be false.
+        portable: true
+        # Certain storage class in the Cloud are slow
+        # Rook can configure the OSD running on PVC to accommodate that by tuning some of the Ceph internal
+        # Currently, "gp2" has been identified as such
+        tuneDeviceClass: true
+        # Certain storage class in the Cloud are fast
+        # Rook can configure the OSD running on PVC to accommodate that by tuning some of the Ceph internal
+        # Currently, "managed-premium" has been identified as such
+        tuneFastDeviceClass: false
+        # whether to encrypt the deviceSet or not
+        encrypted: false
+        # Since the OSDs could end up on any node, an effort needs to be made to spread the OSDs
+        # across nodes as much as possible. Unfortunately the pod anti-affinity breaks down
+        # as soon as you have more than one OSD per node. The topology spread constraints will
+        # give us an even spread on K8s 1.18 or newer.
+        placement:
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - rook-ceph-osd
+        preparePlacement:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchExpressions:
+                      - key: app
+                        operator: In
+                        values:
+                          - rook-ceph-osd
+                      - key: app
+                        operator: In
+                        values:
+                          - rook-ceph-osd-prepare
+                  topologyKey: kubernetes.io/hostname
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - rook-ceph-osd-prepare
+        resources:
+        # These are the OSD daemon limits. For OSD prepare limits, see the separate section below for "prepareosd" resources
+        #   limits:
+        #     cpu: "500m"
+        #     memory: "4Gi"
+        #   requests:
+        #     cpu: "500m"
+        #     memory: "4Gi"
+        volumeClaimTemplates:
+          - metadata:
+              name: data
+              # if you are looking at giving your OSD a different CRUSH device class than the one detected by Ceph
+              # annotations:
+              #   crushDeviceClass: hybrid
+            spec:
+              resources:
+                requests:
+                  storage: 10Gi
+              # IMPORTANT: Change the storage class depending on your environment (e.g. local-storage, gp2)
+              storageClassName: do-block-storage
+              volumeMode: Block
+              accessModes:
+                - ReadWriteOnce
+        # dedicated block device to store bluestore database (block.db)
+        # - metadata:
+        #     name: metadata
+        #   spec:
+        #     resources:
+        #       requests:
+        #         # Find the right size https://docs.ceph.com/docs/master/rados/configuration/bluestore-config-ref/#sizing
+        #         storage: 5Gi
+        #     # IMPORTANT: Change the storage class depending on your environment (e.g. local-storage, io1)
+        #     storageClassName: io1
+        #     volumeMode: Block
+        #     accessModes:
+        #       - ReadWriteOnce
+        # dedicated block device to store bluestore wal (block.wal)
+        # - metadata:
+        #     name: wal
+        #   spec:
+        #     resources:
+        #       requests:
+        #         # Find the right size https://docs.ceph.com/docs/master/rados/configuration/bluestore-config-ref/#sizing
+        #         storage: 5Gi
+        #     # IMPORTANT: Change the storage class depending on your environment (e.g. local-storage, io1)
+        #     storageClassName: io1
+        #     volumeMode: Block
+        #     accessModes:
+        #       - ReadWriteOnce
+        # Scheduler name for OSD pod placement
+        # schedulerName: osd-scheduler
+  resources:
+  #  prepareosd:
+  #    limits:
+  #      cpu: "200m"
+  #      memory: "200Mi"
+  #   requests:
+  #      cpu: "200m"
+  #      memory: "200Mi"
+  disruptionManagement:
+    managePodBudgets: true
+    osdMaintenanceTimeout: 30
+    pgHealthCheckTimeout: 0
+    manageMachineDisruptionBudgets: false
+    machineDisruptionBudgetNamespace: openshift-machine-api
+  # security oriented settings
+  # security:
+  # To enable the KMS configuration properly don't forget to uncomment the Secret at the end of the file
+  #   kms:
+  #     # name of the config map containing all the kms connection details
+  #     connectionDetails:
+  #        KMS_PROVIDER: "vault"
+  #        VAULT_ADDR: VAULT_ADDR_CHANGE_ME # e,g: https://vault.my-domain.com:8200
+  #        VAULT_BACKEND_PATH: "rook"
+  #        VAULT_SECRET_ENGINE: "kv"
+  #     # name of the secret containing the kms authentication token
+  #     tokenSecretName: rook-vault-token
+# UNCOMMENT THIS TO ENABLE A KMS CONNECTION
+# Also, do not forget to replace both:
+#   * ROOK_TOKEN_CHANGE_ME: with a base64 encoded value of the token to use
+#   * VAULT_ADDR_CHANGE_ME: with the Vault address
+# ---
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: rook-vault-token
+#   namespace: rook-ceph # namespace:cluster
+# data:
+#   token: ROOK_TOKEN_CHANGE_ME
+---
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: replicapool
+  namespace: rook-ceph
+spec:
+  failureDomain: host
+  replicated:
+    size: 3
+    # Disallow setting pool with replica 1, this could lead to data loss without recovery.
+    # Make sure you're *ABSOLUTELY CERTAIN* that is what you want
+    requireSafeReplicaSize: true
+    # gives a hint (%) to Ceph in terms of expected consumption of the total cluster capacity of a given pool
+    # for more info: https://docs.ceph.com/docs/master/rados/operations/placement-groups/#specifying-expected-pool-size
+    #targetSizeRatio: .5
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+   name: rook-ceph-block
+# Change "rook-ceph" provisioner prefix to match the operator namespace if needed
+provisioner: rook-ceph.rbd.csi.ceph.com
+parameters:
+    # clusterID is the namespace where the rook cluster is running
+    # If you change this namespace, also change the namespace below where the secret namespaces are defined
+    clusterID: rook-ceph # namespace:cluster
+
+    # If you want to use erasure coded pool with RBD, you need to create
+    # two pools. one erasure coded and one replicated.
+    # You need to specify the replicated pool here in the `pool` parameter, it is
+    # used for the metadata of the images.
+    # The erasure coded pool must be set as the `dataPool` parameter below.
+    #dataPool: ec-data-pool
+    pool: replicapool
+
+    # (optional) mapOptions is a comma-separated list of map options.
+    # For krbd options refer
+    # https://docs.ceph.com/docs/master/man/8/rbd/#kernel-rbd-krbd-options
+    # For nbd options refer
+    # https://docs.ceph.com/docs/master/man/8/rbd-nbd/#options
+    # mapOptions: lock_on_read,queue_depth=1024
+
+    # (optional) unmapOptions is a comma-separated list of unmap options.
+    # For krbd options refer
+    # https://docs.ceph.com/docs/master/man/8/rbd/#kernel-rbd-krbd-options
+    # For nbd options refer
+    # https://docs.ceph.com/docs/master/man/8/rbd-nbd/#options
+    # unmapOptions: force
+
+    # RBD image format. Defaults to "2".
+    imageFormat: "2"
+
+    # RBD image features. Available for imageFormat: "2". CSI RBD currently supports only `layering` feature.
+    imageFeatures: layering
+
+    # The secrets contain Ceph admin credentials. These are generated automatically by the operator
+    # in the same namespace as the cluster.
+    csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+    csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph # namespace:cluster
+    csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+    csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph # namespace:cluster
+    csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+    csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph # namespace:cluster
+    # Specify the filesystem type of the volume. If not specified, csi-provisioner
+    # will set default as `ext4`. Note that `xfs` is not recommended due to potential deadlock
+    # in hyperconverged settings where the volume is mounted on the same node as the osds.
+    csi.storage.k8s.io/fstype: ext4
+# uncomment the following to use rbd-nbd as mounter on supported nodes
+# **IMPORTANT**: If you are using rbd-nbd as the mounter, during upgrade you will be hit a ceph-csi
+# issue that causes the mount to be disconnected. You will need to follow special upgrade steps
+# to restart your application pods. Therefore, this option is not recommended.
+#mounter: rbd-nbd
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rook-ceph-mgr-dashboard-service
+  namespace: rook-ceph # namespace:cluster
+  labels:
+    app: rook-ceph-mgr
+    rook_cluster: rook-ceph # namespace:cluster
+spec:
+  ports:
+    - name: dashboard
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+  selector:
+    app: rook-ceph-mgr
+    rook_cluster: rook-ceph
+  sessionAffinity: None
+  type: ClusterIP
+# ---
+# apiVersion: traefik.containo.us/v1alpha1
+# kind: IngressRoute
+# metadata:
+#   name: rook-dashboard
+#   namespace: solution
+# spec:
+#   entryPoints:
+#     - web
+#     # - websecure
+#   routes:
+#     - match: Host(`rook.thecb4.io`)
+#       kind: Rule
+#       services:
+#         - name: rook-ceph-mgr-dashboard-service
+#           port: 8443
+  # tls:
+  #   secretName: vapor.thecb4.io-tls

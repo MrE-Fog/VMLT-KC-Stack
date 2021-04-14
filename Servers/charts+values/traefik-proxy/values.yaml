@@ -1,0 +1,30 @@
+logs:
+  general:
+    level: DEBUG
+
+additionalArguments:
+  - "--certificatesresolvers.letsencrypt.acme.email=cavelle@thecb4.io"
+  - "--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json"
+  - "--certificatesresolvers.letsencrypt.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"
+  - "--certificatesResolvers.letsencrypt.acme.tlsChallenge=true"
+  - "--providers.kubernetesingress.ingressclass=traefik-cert-manager"
+
+# https://stackoverflow.com/questions/66138370/permission-problem-w-helm3-installation-of-traefik-on-port-80-hostnetwork
+# https://github.com/traefik/traefik-helm-chart/issues/336
+# hostNetwork: true
+
+ports:
+  web:
+    port: 80
+    redirectTo: websecure
+  websecure:
+    port: 443
+
+securityContext:
+  capabilities:
+    drop: [ALL]
+    add: [NET_BIND_SERVICE]
+  readOnlyRootFilesystem: true
+  runAsGroup: 0
+  runAsNonRoot: false
+  runAsUser: 0

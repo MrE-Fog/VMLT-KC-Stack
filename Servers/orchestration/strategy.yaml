@@ -1,0 +1,5 @@
+- name: "Swift Vapor + MongoDB behind Traefik with Let's Encrypt TLS in a Kuerbernetes Cluster with Ceph as Block Storage using Ansible + Terraform + Helm"
+  hosts: localhost
+  connection: local
+  roles:
+    - Orc
